@@ -2,6 +2,7 @@ const userModel = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { blacklistModel } = require("../models/blacklist.model");
+const redis = require("../config/cache");
 
 async function registerUser(req, res) {
   const { username, email, password } = req.body;
@@ -109,13 +110,15 @@ async function logoutUser(req, res) {
 
   res.clearCookie("token");
 
-  await blacklistModel.create({
-    token
-  })
+  // await redis.set(token, Date.now().toString()); // blacklisted token will be life long 
+
+  await redis.set(token, Date.now().toString(), "EX", 60 * 60);  //now the blacklisted token will expire in 1 hr 
+
+  // You should store a blacklisted token in Redis for exactly the remaining time left until the token's natural expiration date
 
   res.status(200).json({
-    message : "Logout successfully."
-  })
+    message: "Logout successfully.",
+  });
 }
 
 module.exports = { registerUser, loginUser, getMe, logoutUser };
