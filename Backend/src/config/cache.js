@@ -15,3 +15,7 @@ redis.on("error", (err) => {
 });
 
 module.exports = redis;
+
+// npm i ioredis -> package to connect our server and redis 
+
+// primary use of redis is for caching
