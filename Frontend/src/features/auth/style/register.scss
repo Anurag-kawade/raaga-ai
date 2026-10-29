@@ -1,10 +1,11 @@
-.register-page{
+
+.register-page {
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
 
-    .form-container{
+    .form-container {
         display: flex;
         flex-direction: column;
         gap: 1rem;
@@ -13,23 +14,61 @@
         min-width: 300px;
     }
 
-    form{
+    form {
         display: flex;
         flex-direction: column;
         gap: 1rem;
 
-        .form-group{
+        .form-group {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
 
-            input{
+            input {
                 padding: 0.5rem;
                 border-radius: 0.25rem;
                 border: 1px solid #ccc;
 
                 border: none;
                 outline: none;
+            }
+
+            // Password input wrapper
+            .input-wrapper {
+                position: relative;
+                width: 100%;
+
+                input {
+                    width: 100%;
+                    box-sizing: border-box;
+                }
+            }
+
+            // Space for the eye icon
+            .password-wrapper {
+                input {
+                    padding-right: 45px;
+                }
+            }
+
+            // Eye toggle button
+            .password-toggle {
+                position: absolute;
+                top: 50%;
+                right: 12px;
+                transform: translateY(-50%);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 4px;
+                border: none;
+                background: transparent;
+                color: #666;
+                cursor: pointer;
+
+                &:hover {
+                    color: #222;
+                }
             }
         }
     }

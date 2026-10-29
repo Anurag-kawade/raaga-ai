@@ -1,115 +1,115 @@
-import { useEffect, useRef, useState } from "react";
-import "./FaceExpression.css";
 
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   initializeExpressionDetector,
-  detectExpression as getDetectedExpression,
+  detectExpression,
 } from "../utils/utils.js";
+import { useSong } from "../../home/hooks/useSong";
+import "./FaceExpression.scss";
 
-export default function FaceExpression() {
+const FaceExpression = () => {
   const videoRef = useRef(null);
-  const landmarkerRef = useRef(null);
-  const cleanupRef = useRef(null);
-  const isDetectingRef = useRef(false);
+  const detectorRef = useRef(null);
+  const navigate = useNavigate();
 
-  const [expression, setExpression] = useState("");
-  const [isReady, setIsReady] = useState(false);
+  const { loading, handleGetSong } = useSong();
+
+  const [detectorReady, setDetectorReady] = useState(false);
+  const [detectedMood, setDetectedMood] = useState("");
   const [error, setError] = useState("");
-  const [isDetecting, setIsDetecting] = useState(false);
 
-  // Initialize the camera and MediaPipe when the component mounts.
   useEffect(() => {
-    let isActive = true;
-    let initialization = null;
+    let cancelled = false;
 
-    const init = async () => {
+    async function setupCamera() {
       try {
-        setError("");
+        const detector = await initializeExpressionDetector(
+          videoRef.current
+        );
 
-        initialization = await initializeExpressionDetector(videoRef.current);
-
-        // If the component unmounted while initializing, release resources.
-        if (!isActive) {
-          initialization.cleanup();
+        if (cancelled) {
+          detector.cleanup();
           return;
         }
 
-        landmarkerRef.current = initialization.landmarker;
-        cleanupRef.current = initialization.cleanup;
-
-        setIsReady(true);
+        detectorRef.current = detector;
+        setDetectorReady(true);
       } catch (err) {
-        console.error("Camera or MediaPipe error:", err);
+        console.error("Expression detector initialization failed:", err);
 
-        if (isActive) {
+        if (!cancelled) {
           setError(
-            "Unable to start detection. Please allow camera access and check your internet connection.",
+            "Unable to start the camera. Please check camera permissions."
           );
         }
       }
-    };
+    }
 
-    init();
+    setupCamera();
 
     return () => {
-      isActive = false;
-
-      if (cleanupRef.current) {
-        cleanupRef.current();
-        cleanupRef.current = null;
-      } else if (initialization) {
-        initialization.cleanup();
-      }
-
-      landmarkerRef.current = null;
+      cancelled = true;
+      detectorRef.current?.cleanup();
+      detectorRef.current = null;
     };
   }, []);
 
-  // Detection runs only when the user clicks the button.
-  const handleDetectExpression = () => {
-    if (
-      !isReady ||
-      !landmarkerRef.current ||
-      !videoRef.current ||
-      isDetectingRef.current
-    ) {
-      return;
-    }
-
-    isDetectingRef.current = true;
-    setIsDetecting(true);
+  async function handleDetectExpression() {
     setError("");
 
     try {
-      const detectedExpression = getDetectedExpression(
-        landmarkerRef.current,
-        videoRef.current,
+      if (!detectorRef.current || !videoRef.current) {
+        setError("Camera is not ready. Please try again.");
+        return;
+      }
+
+      const mood = detectExpression(
+        detectorRef.current.landmarker,
+        videoRef.current
       );
 
-      setExpression(detectedExpression);
-    } catch (err) {
-      console.error("Expression detection failed:", err);
+      if (mood === null) {
+        setDetectedMood("");
+        setError(
+          "No face detected. Please face the camera and try again."
+        );
+        return;
+      }
 
-      setError(err.message || "Detection failed. Please try again.");
-    } finally {
-      isDetectingRef.current = false;
-      setIsDetecting(false);
+      setDetectedMood(mood);
+
+      await handleGetSong({ mood });
+
+      navigate("/player");
+    } catch (err) {
+      console.error("Failed to detect expression or fetch song:", err);
+
+      setError(
+        err.response?.status === 404
+          ? `No songs are available for "${detectedMood}" yet.`
+          : err.response?.data?.message ||
+            "Unable to fetch a song. Please try again."
+      );
     }
-  };
+  }
 
   return (
     <main className="expression-page">
       <section className="expression-card">
-        <div className="expression-header">
-          <span className="expression-eyebrow">RAAGA · AI VISION</span>
+        <header className="expression-header">
+          <span className="expression-eyebrow">
+            RAAGA AI · EMOTION PLAYER
+          </span>
 
-          <h1>Expression Detector</h1>
+          <h1>Feel the Music.</h1>
 
           <p>
-            Let your face express itself. Click the button to detect your
-            current facial expression.
+            Let your expression guide your next song.
+            Look into the camera and discover music
+            that matches your mood.
           </p>
-        </div>
+        </header>
 
         <div className="camera-container">
           <video
@@ -120,36 +120,57 @@ export default function FaceExpression() {
             playsInline
           />
 
-          {!isReady && !error && (
+          {!detectorReady && (
             <div className="camera-overlay">
-              <span className="loading-spinner" />
-              <p>Preparing your camera...</p>
+              {error ? (
+                <>
+                  <span>Camera unavailable</span>
+                  <p>{error}</p>
+                </>
+              ) : (
+                <>
+                  <div className="loading-spinner" />
+                  <p>Preparing your camera...</p>
+                </>
+              )}
             </div>
           )}
         </div>
 
         <div className="expression-result" aria-live="polite">
-          <span className="result-label">DETECTED EXPRESSION</span>
+          <span className="result-label">
+            {detectedMood ? "YOUR DETECTED MOOD" : "READY TO DISCOVER?"}
+          </span>
 
-          <h2>{expression || "Ready when you are"}</h2>
+          <h2>
+            {detectedMood || "Let your mood decide"}
+          </h2>
         </div>
 
         <button
           className="detect-button"
+          type="button"
           onClick={handleDetectExpression}
-          disabled={!isReady || isDetecting}
+          disabled={!detectorReady || loading}
         >
-          {isDetecting ? "Detecting..." : "Detect Expression"}
+          {loading
+            ? "Finding your song..."
+            : "Detect My Expression"}
         </button>
 
-        {error && <p className="expression-error">{error}</p>}
+        {error && (
+          <p className="expression-error" role="alert">
+            {error}
+          </p>
+        )}
 
         <p className="expression-hint">
-          {isReady
-            ? "Each click captures a fresh expression."
-            : "Allow camera access to get started."}
+          Your camera is used to detect facial expressions.
+          No microphone is required.
         </p>
       </section>
     </main>
   );
-}
+};
+
+export default FaceExpression;
